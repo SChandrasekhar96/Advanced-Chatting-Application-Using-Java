@@ -249,7 +249,13 @@ public class ChatServer {
                     } catch (EOFException e) {
                         System.out.println(username + " has disconnected.");
                         break;
-                    } catch (IOException | ClassNotFoundException e) {
+                    } catch (SocketException e) {
+                        System.out.println("Connection reset or socket closed by client: " + username);
+                        break;
+                    } catch (IOException e) {
+                        System.out.println("IOException occurred for " + username + ": " + e.getMessage());
+                        break;
+                    } catch (ClassNotFoundException e) {
                         e.printStackTrace();
                     }
                 }
@@ -263,11 +269,23 @@ public class ChatServer {
         private void cleanup() {
             try {
                 if (username != null) {
+                    // Remove from online users map
                     onlineUsers.remove(username);
                     System.out.println(username + " has gone offline.");
-                    // Broadcast offline status to all users
+
+                    // Update status in database
+                    try (Connection conn = getConnection();
+                         PreparedStatement stmt = conn.prepareStatement("UPDATE user SET status = 'offline' WHERE username = ?")) {
+                        stmt.setString(1, username);
+                        stmt.executeUpdate();
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                    }
+
+                    // Broadcast offline status to other users
                     ChatServer.broadcastStatus(username, "offline");
                 }
+
                 if (socket != null) socket.close();
                 if (in != null) in.close();
                 if (out != null) out.close();
@@ -275,5 +293,6 @@ public class ChatServer {
                 e.printStackTrace();
             }
         }
+
     }
 }

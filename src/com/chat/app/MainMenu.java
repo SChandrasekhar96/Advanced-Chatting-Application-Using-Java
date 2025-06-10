@@ -66,7 +66,7 @@ public class MainMenu extends JFrame {
         });
 
         groupChatButton.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this, "Group chat coming soon!");
+        new CreateGroup(username);
         });
 
         shareFileButton.addActionListener(e -> {
@@ -77,6 +77,13 @@ public class MainMenu extends JFrame {
             updateUserStatus(username, "offline");  // ✅ Set offline on logout
             dispose();
             new login();
+        });
+        
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                updateUserStatus(username, "offline");
+            }
         });
 
         setVisible(true);
