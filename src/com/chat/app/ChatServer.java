@@ -94,6 +94,43 @@ public class ChatServer {
             e.printStackTrace();
         }
     }
+    
+    private static void sendGroupMessage(int groupId, String sender, String message) {
+        String getMembersSql = "SELECT username FROM chat_group_members WHERE group_id = ?";
+        String insertMessageSql = "INSERT INTO chat_group_messages (group_id, sender, message) VALUES (?, ?, ?)";
+
+        try (Connection conn = getConnection();
+             PreparedStatement getMembersStmt = conn.prepareStatement(getMembersSql);
+             PreparedStatement insertMsgStmt = conn.prepareStatement(insertMessageSql)) {
+
+            // Insert the group message into the DB
+            insertMsgStmt.setInt(1, groupId);
+            insertMsgStmt.setString(2, sender);
+            insertMsgStmt.setString(3, message);
+            insertMsgStmt.executeUpdate();
+
+            // Fetch all group members
+            getMembersStmt.setInt(1, groupId);
+            ResultSet rs = getMembersStmt.executeQuery();
+
+            while (rs.next()) {
+                String member = rs.getString("username");
+                if (!member.equals(sender)) {
+                    ObjectOutputStream memberOut = onlineUsers.get(member);
+                    if (memberOut != null) {
+                        String formatted = "[Group #" + groupId + "] " + sender + ": " + message;
+                        memberOut.writeObject(formatted);
+                        memberOut.flush();
+                    }
+                }
+            }
+
+        } catch (SQLException | IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
 
     private static void handleOfflineMessage(String sender, String receiver, String message) {
         saveMessageToDB(sender, receiver, message);
@@ -149,6 +186,29 @@ public class ChatServer {
 
         return history;
     }
+    
+    public static List<String> loadGroupChatHistory(int groupId) {
+        List<String> history = new ArrayList<>();
+        String sql = "SELECT sender, message, timestamp FROM chat_group_messages WHERE group_id = ? ORDER BY timestamp ASC";
+
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, groupId);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                String sender = rs.getString("sender");
+                String msg = rs.getString("message");
+                Timestamp ts = rs.getTimestamp("timestamp");
+
+                history.add("[" + ts.toString() + "] " + sender + ": " + msg);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return history;
+    }
+
 
     private static boolean isMessageDeletedForUser(String username, String message) {
         String sql = "SELECT * FROM deleted_messages WHERE username = ? AND message = ?";
@@ -195,6 +255,15 @@ public class ChatServer {
                 // 1. Read logged-in username and friend username
                 username = (String) in.readObject();
                 String friendUsername = (String) in.readObject();
+                
+                if (friendUsername.startsWith("group::")) {
+                    int groupId = Integer.parseInt(friendUsername.substring("group::".length()));
+                    List<String> groupHistory = ChatServer.loadGroupChatHistory(groupId);
+                    for (String msg : groupHistory) {
+                        out.writeObject(msg);
+                    }
+                    out.flush();
+                }
 
                 // 2. Add user to online users
                 onlineUsers.put(username, out);
@@ -234,12 +303,19 @@ public class ChatServer {
                             }
                             continue;
                         }
-
-                        // Normal message sending: read receiver and message
+                        
                         String receiver = (String) input;
                         String message = (String) in.readObject();
 
-                        if (onlineUsers.containsKey(receiver)) {
+                        if (receiver.startsWith("group::")) {
+                            try {
+                                int groupId = Integer.parseInt(receiver.substring("group::".length()));
+                                ChatServer.sendGroupMessage(groupId, username, message);
+                            } catch (NumberFormatException e) {
+                                out.writeObject("Invalid group ID format.");
+                                out.flush();
+                            }
+                        } else if (onlineUsers.containsKey(receiver)) {
                             ChatServer.sendMessageToReceiver(receiver, username, message);
                         } else {
                             ChatServer.handleOfflineMessage(username, receiver, message);
@@ -296,3 +372,17 @@ public class ChatServer {
 
     }
 }
+
+
+// Normal message sending: read receiver and message
+//String receiver = (String) input;
+//String message = (String) in.readObject();
+//
+//if (onlineUsers.containsKey(receiver)) {
+//  ChatServer.sendMessageToReceiver(receiver, username, message);
+//} else {
+//  ChatServer.handleOfflineMessage(username, receiver, message);
+//  out.writeObject("User " + receiver + " is offline. Your message has been saved.");
+//  out.flush();
+//}
+

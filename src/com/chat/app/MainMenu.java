@@ -33,12 +33,12 @@ public class MainMenu extends JFrame {
         groupChatButton.setBounds(100, 130, 150, 25);
         add(groupChatButton);
 
-        JButton shareFileButton = new JButton("Share File");
-        shareFileButton.setBounds(100, 170, 150, 25);
-        add(shareFileButton);
+//        JButton shareFileButton = new JButton("Share File");
+//        shareFileButton.setBounds(100, 170, 150, 25);
+//        add(shareFileButton);
 
         JButton logoutButton = new JButton("Log Out");
-        logoutButton.setBounds(100, 210, 150, 25);
+        logoutButton.setBounds(100, 170, 150, 25);
         add(logoutButton);
 
         startChatButton.addActionListener(e -> {
@@ -69,9 +69,9 @@ public class MainMenu extends JFrame {
         new CreateGroup(username);
         });
 
-        shareFileButton.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this, "File sharing coming soon!");
-        });
+//        shareFileButton.addActionListener(e -> {
+//            JOptionPane.showMessageDialog(this, "File sharing coming soon!");
+//        });
 
         logoutButton.addActionListener(e -> {
             updateUserStatus(username, "offline");  // ✅ Set offline on logout
